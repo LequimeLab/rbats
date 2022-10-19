@@ -843,13 +843,14 @@ get_output <- function(all_stats, shuffled_stats){
   output_frame <- cbind(output_frame, t(data.frame(lapply(shuffled_stats, function(x) {return(x[round(length(x)*0.95)])}))))
   output_frame <- cbind(output_frame, t(data.frame(lapply(shuffled_stats, function(x) {return(x[max(c(round(length(x)*0.05), 1))])}))))
   # Calculate the significance
-  for(stat in length(names(medians))){
+  for(stat_num in 1:length(names(medians))){
+    stat <- names(medians)[[stat_num]]
     count <- 0
-    for(value in shuffled_stats[[names(medisans)[[stat]]]]){
-      if(value<medians[[names(medisans)[[stat]]]] && stat <= 8){
+    for(value in shuffled_stats[[stat]]){
+      if(value<medians[[stat]] && stat_num <= 8){
         # For all other stats
         count <- count + 1
-      } else if(value<medians[[names(medisans)[[stat]]]] && stat >= 9){
+      } else if(value<medians[[stat]] && stat_num >= 9){
         # For the MC stats
         count <- count + 1
       }

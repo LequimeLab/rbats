@@ -1,4 +1,5 @@
 #' @import ape
+#' @import TreeTools
 NULL
 
 #' Shuffler

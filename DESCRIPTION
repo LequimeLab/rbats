@@ -7,4 +7,5 @@ RoxygenNote: 7.2.1
 Description: An R package for bayesian analasys of tip significance
 Encoding: UTF-8
 Imports:
-  ape
+  ape,
+  TreeTools

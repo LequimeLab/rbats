@@ -705,7 +705,7 @@ NTI_NRI <- function(utree, possible_states, userinput, xmldict){
 bats <- function(treefile, xmlfile, reps=1, userinput=NULL){
   start.time <- Sys.time()
   print("Reading the tree file...")
-  apetrees <- treeio::read.beast(treefile)
+  apetrees <- ape::read.nexus(treefile)
   xmldict <- process_xml(xmlfile)
   
   # Get possible states

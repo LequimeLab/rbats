@@ -9,3 +9,5 @@ Encoding: UTF-8
 Imports:
   ape,
   treeio
+Remotes: 
+  YuLab-SMU/treeio

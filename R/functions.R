@@ -1,5 +1,5 @@
-#' @import treeio
 #' @import ape
+NULL
 
 #' Shuffler
 #'

@@ -8,4 +8,4 @@ Description: An R package for bayesian analasys of tip significance
 Encoding: UTF-8
 Imports:
   ape,
-  TreeTools
+  treeio

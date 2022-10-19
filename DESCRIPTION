@@ -1,0 +1,11 @@
+Package: firsttest
+Type: Package
+Title: RBATS
+Version: 0.0.1.0
+Author: IJsbrand Pool
+RoxygenNote: 7.2.1
+Description: An R package for bayesian analasys of tip significance
+Encoding: UTF-8
+Imports:
+  ape,
+  TreeTools

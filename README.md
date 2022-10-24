@@ -9,7 +9,7 @@ R version 4.0.0 or above is required to download this package. The package "devt
 # Instalation
 To install this package, the devtools package needs to be installed and then used like this:
 ```
-devtools::install_github("slequime/r-bats")
+devtools::install_github("slequime/rbats")
 ```
 
 # Usage

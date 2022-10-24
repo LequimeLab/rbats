@@ -228,7 +228,7 @@ make_internal_node <- function(treesplit, pos, statesdict, state_attribute) {
         thisnode$position <- i
       }
       thisnode <- association_index(thisnode)
-      thisnode <- set_monoweights(thisnode)
+      thisnode <- finish_node(thisnode)
       
       return(thisnode)
     } else {
@@ -317,7 +317,7 @@ make_terminal_node <- function(newpos, treesplit, statesdict, state_attribute) {
 #' @param thisnode the internal node that should be finished
 #' @return the finished internal node
 #' @export
-set_monoweights <- function(thisnode){
+finish_node <- function(thisnode){
   # Get all the states and monophyletic states of its daughters.
   statelist <- c()
   dmono <- c()
@@ -753,29 +753,24 @@ bats <- function(treefile, xmlfile, reps=1, userinput=NULL){
 set_state_attribute <- function(xmldict, userinput){
   warn <- FALSE
   
-  if(is.null(userinput) && length(xmldict$attributes) > 1){
-    # If the user did not specify a state attribute and there are multiple attributes
-    warn <- TRUE
-    state_attribute <- xmldict$attributes[[1]]
-  } else if(is.null(userinput) && length(xmldict$attributes) == 1){
-    # if the user did not specify a state attribute and there is only one attribute, set it to that attribute
-    state_attribute <- xmldict$attributes
-  } else if(!is.null(userinput)){
+  if(!is.null(userinput)){
     # If the user did specify a state attribute, set it to that attribute
     state_attribute <- toupper(userinput)
+  } else if(length(xmldict$attributes) == 1) {
+    # if the user did not specify a state attribute and there is only one attribute, set it to that attribute
+    state_attribute <- xmldict$attributes
+  } else {
+    # If the user did not specify a state attribute and there are multiple attributes
+    warn <- TRUE
+    state_attribute <- smart_pick(xmldict)
   }
   
   statelist <- get_possible_states(xmldict, state_attribute)
   
   if(warn == TRUE){
-    attributes <- c()
-    for(attribute in xmldict$attributes){
-      attributes <-c(attributes, attribute)
-    }
-    attributes <- paste(attributes, collapse=", ")
-    warning("There are multiple attributes and none was specified to be the state attribute.\"", xmldict$attributes[[1]],
-            "\" was automatically chosen to be the state attribute. If this attribute is not the state attribute, please specify which attribute it is.\n",
-            "The found attributes are: \n", attributes)
+    warning("There are multiple attributes and none was specified to be the state attribute.\"", state_attribute,
+            "\" was automatically chosen to be the state attribute. If this attribute is not the state attribute,
+            please specify which attribute it is.\n", "The found attributes are: \n", paste(xmldict$attributes, collapse=", "))
   }
   
   if(length(unique(statelist)) == 1){
@@ -891,12 +886,26 @@ print_start <- function(treefile, apetrees, possible_states, state_attribute, re
 }
 
 
-
-
-
-
-
-
+#' Pick a good state attribute
+#'
+#' Pick an attribute that can be used as a state attribute. Returns either a good state attribute or the first attribute.
+#' @param xmldict the xml dictionary
+#' @return a good or the first attribute
+#' @export
+smart_pick <- function(xmldict){
+  for(attribute in xmldict$attributes){
+    states <- c()
+    # Get all the states for this attribute
+    for(taxon in xmldict$states){
+      states <- c(states, taxon[[attribute]])
+    }
+    # Check if the attribute can be used as a state attribute
+    if(!length(unique(states))==1 && !length(unique(states))==length(states) && !min(table(states))==1){
+      return(attribute)
+    }
+  }
+  return(xmldict$attributes[[1]])
+}
 
 
 

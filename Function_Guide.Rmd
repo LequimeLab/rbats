@@ -282,125 +282,63 @@ This function creates terminal nodes. It is given a vector of the split tree, a 
 ### Finish Node
 ```{r finish_node}
 finish_node <- function(thisnode){
-  statelist <- c()
-  dmono <- c()
+  has_nm <- FALSE
+  has_m <- FALSE
   for(daughter in thisnode$daughters){
-    if(length(daughter$daughters)>0){
-      dmono <- c(dmono, daughter$ismono)
-    } else {
-      statelist <- c(statelist, daughter$state)
+    if(!is.null(daughter$ismono)){
+      if(daughter$ismono == FALSE){
+        has_nm = TRUE
+      } else if(daughter$ismono == TRUE){
+        has_m = TRUE
+      }
     }
   }
-  if(length(statelist)==2){
-    if(length(unique(statelist))==1){
-      thisnode$ismono <- TRUE
-      thisnode$state <- unique(statelist)
+  d1state <- thisnode$daughters[[1]]$state
+  d2state <- thisnode$daughters[[2]]$state
+  
+  if(has_nm == TRUE){
+    thisnode$ismono <- FALSE
+    if(length(intersect(d1state, d2state)) > 0){
+      thisnode$state <- intersect(d1state, d2state)
     } else {
-      thisnode$state <- unique(statelist)
-      thisnode$ismono <- FALSE
+      thisnode$state <- c(d1state, d2state)
       thisnode$PS <- 1
     }
-  } else if(length(statelist)==1 && TRUE %in% dmono){
-    daughterstates <- c()
-    for(daughter in thisnode$daughters){
-      daughterstates <- c(daughterstates, daughter$state)
-    }
-    if(daughterstates[1] == daughterstates[2]){
-      thisnode$ismono <- TRUE
-      thisnode$state <- toString(statelist)
-    } else {
-      thisnode$ismono <- FALSE
+    if(has_m == TRUE){
       for(daughter in thisnode$daughters){
-        if(length(daughter$daughters)>0){
+        if(daughter$ismono == TRUE){
           thisnode$monoweights[[daughter$state]] <- count_leaves(daughter)
         }
       }
-      thisnode$state <- unique(daughterstates)
-      thisnode$PS <- 1
     }
-  } else if(length(dmono)==2){
-    if(dmono[1] && dmono[2]){
-      daughterstates <- c()
-      for(daughter in thisnode$daughters){
-        daughterstates <- c(daughterstates, daughter$state)
-      }
-      if(length(unique(daughterstates)) == 1){
-        thisnode$state <- unique(daughterstates)
-        thisnode$ismono <- TRUE
-      } else {
-        thisnode$ismono <- FALSE
-        thisnode$state <- unique(daughterstates)
-        thisnode$PS <- 1
+  } else {
+    if(d1state == d2state){
+      thisnode$ismono <- TRUE
+      thisnode$state <- d1state
+    } else {
+      thisnode$ismono <- FALSE
+      thisnode$state <- c(d1state, d2state)
+      thisnode$PS <- 1
+      if(has_m == TRUE){
         for(daughter in thisnode$daughters){
           thisnode$monoweights[[daughter$state]] <- count_leaves(daughter)
         }
       }
-    } else if(!dmono[1] && !dmono[2]){
-      thisnode$ismono <- FALSE
-      daughterstates <- list()
-      for(i in 1:length(thisnode$daughters)){
-        daughterstates[[i]] <- daughter$state
-      }
-      if(length(intersect(daughterstates[[1]], daughterstates[[2]])) > 0){
-        thisnode$state <- intersect(daughterstates[[1]], daughterstates[[2]])
-      } else {
-        thisnode$state <- c(daughterstates[[1]], daughterstates[[2]])
-        thisnode$PS <- 1
-      }
-    } else {
-      for(daughter in thisnode$daughters){
-        if(daughter$ismono){
-          thisnode$monoweights[[daughter$state]] <- count_leaves(daughter)
-        }
-      }
-      daughterstates <- list()
-      for(i in 1:length(thisnode$daughters)){
-        daughterstates[[i]] <- thisnode$daughters[[i]]$state
-      }
-      if(length(intersect(daughterstates[[1]], daughterstates[[2]])) > 0){
-        thisnode$state <- intersect(daughterstates[[1]], daughterstates[[2]])
-      } else {
-        thisnode$state <- unique(daughterstates)
-        thisnode$PS <- 1
-      }
-    }
-  } else {
-    internal_states <- c()
-    for(daughter in thisnode$daughters){
-      if(length(daughter$daughters)>0){
-        internal_states <- daughter$state
-      }
-    }
-    if(length(intersect(internal_states, statelist))>0){
-      thisnode$state <- intersect(internal_states, statelist)
-    } else {
-      thisnode$state <- c(internal_states, statelist)
-      thisnode$PS <- 1
     }
   }
   return(thisnode)
 }
 ```
 \newpage
-This function sets various attributes for an internal node. It receives the internal node it should finish, and it returns the same internal node with the added attributes. This function starts by getting the states of its terminal daughter(s) and/or the monophyletic state(s) of its internal daughters. This will result in two vectors. Depending on these lists, the state, monophyletic state and the PS score of this node are set according to one of these cases:
+This function sets various attributes for an internal node. It receives the internal node it should finish, and it returns the same internal node with the added attributes. First, both daughters are checked to see if this node has a monophyletic daughter, non-monophyletic daughter, both or neither. If the node has a non-monophylatic daughter, this node will always be non-monophyletic. If the states of the daughters match, the state of this node is set to that match. If they dont match, the state is set to all its daughters' states. If one of the daughters is monophyletic, the monophyletic clade is calculated for that state. The same is done if the node does not have a non-monophyletic node. See the following chart for clarification:
 
-* If the node has **two terminal** daughters and they have the **same state**, this node will set its own state to that state and mark itself as monophyletic. 
-* If the node has **two terminal** daughters and they have **differing states**, it will set its state to a vector of the two states and mark itself as non-monophyletic. 
-* If the node has **two monophyletic** internal daughters, it will check if they are monophyletic for the same state.
-  + If so, set this node's state to that state and mark it as monophyletic.
-  + If not, set this node's state to a vector of the two daughters' states and mark it as non-monophyletic. Also calculates the monophyletic clade for both states and set this node's PS to 1
-* If the node has a **monophyletic and non-monophyletic** daughter, calculate the monophyletic clade for the state of the monophyletic node, mark this node as non-monophyletic and check if the state-list of the non-monophyletic daughter contains the state of the monophyletic daughter.
-  + If so, set this node's state to that state
-  + If not, set this node's state to a vector of all its daughters states and set its PS to 1
-* If the node has **two non-monophyletic** internal daughters, mark this node as non-monophyletic and check if the daughters' state-lists have one or more matching states.
-  + If so, set this node's state to that/those state(s)
-  + If not, set this node's state to a vector of all its daughters' states and set its PS to 1
-* If the node has a **terminal and an monophyletic** internal daughter, it will check if the internal daughter is monophyletic for the terminal daughters' state.
-  + If so, set this node's state to that state and mark it as monophyletic.
-  + If not, set this node's state to a vector of both states, mark it as non-monophyletic, calculate the monophyletic clade and set its PS to 1.
-* If the node has a **terminal and a non-monophyletic** internal daughter, mark this node as non-monophyletic and check if the terminal daughters' state is in the internal daughters state-list.
-  + If so, set this node's state to that state
-  + If not, set this node's state to a vector of all states
+* If the node has at least one **non-monophyletic** daughter, mark this node as non-monophyletic.
+  + If the states of the daughters of this node match on at least one state, set this node's state to that/those states.
+  + If the daughters do not have a matching state, set this node's state to all its daughters' states and set its PS to 1.
+  + If one of the daughters is monophyletic, calculate the monophyletic clade for it's state.
+* If the node does not have a non-monophyletic daughter.
+  + If the states of it's daughters match, mark this node as monophyletic and set it's state to the matching state.
+  + If the states do not match, mark this node as non-monophyletic and set its state to both it's daughters' states. If one of these daughters is monophyletic, calculate the monophyletic clade for that state.
 
 \newpage
 

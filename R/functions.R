@@ -313,127 +313,60 @@ make_terminal_node <- function(newpos, treesplit, statesdict, state_attribute) {
 
 #' Finish internal node
 #'
-#' Finishes the internal node by setting the states, state weights, and whether or not the node is monophyletic.
+#' Finishes the internal node by setting the state, the parsimony score, whether or not the node is monophyletic, and calculating the monophyletic clade if necessary.
 #' @param thisnode the internal node that should be finished
 #' @return the finished internal node
 #' @export
 finish_node <- function(thisnode){
-  # Get all the states and monophyletic states of its daughters.
-  statelist <- c()
-  dmono <- c()
+  has_nm <- FALSE
+  has_m <- FALSE
+  # Check if thisnode has a monophyletic daughter, a non-monophyletic daughter, neiter or both.
   for(daughter in thisnode$daughters){
-    if(length(daughter$daughters)>0){
-      # If the daughter is an internal node
-      dmono <- c(dmono, daughter$ismono)
-    } else {
-      # If the daughter is a terminal node
-      statelist <- c(statelist, daughter$state)
+    if(!is.null(daughter$ismono)){
+      if(daughter$ismono == FALSE){
+        has_nm = TRUE
+      } else if(daughter$ismono == TRUE){
+        has_m = TRUE
+      }
     }
   }
-  if(length(statelist)==2){
-    # If both daughters are terminal nodes
-    if(length(unique(statelist))==1){
-      # If both terminal nodes have the same state
-      thisnode$ismono <- TRUE
-      thisnode$state <- unique(statelist)
+  d1state <- thisnode$daughters[[1]]$state
+  d2state <- thisnode$daughters[[2]]$state
+  
+  if(has_nm == TRUE){
+    # If thisnode has a non-monophyletic daughter
+    thisnode$ismono <- FALSE
+    if(length(intersect(d1state, d2state)) > 0){
+      # If they have one or more matching states
+      thisnode$state <- intersect(d1state, d2state)
     } else {
-      # If both terminal nodes have different states
-      thisnode$state <- unique(statelist)
-      thisnode$ismono <- FALSE
+      thisnode$state <- c(d1state, d2state)
       thisnode$PS <- 1
     }
-  } else if(length(statelist)==1 && TRUE %in% dmono){
-    # If the daughers are a terminal node and a monophyletic internal node
-    daughterstates <- c()
-    for(daughter in thisnode$daughters){
-      daughterstates <- c(daughterstates, daughter$state)
-    }
-    if(daughterstates[1] == daughterstates[2]){
-      # If the state of the terminal is the same as the state of the internal
-      thisnode$ismono <- TRUE
-      thisnode$state <- toString(statelist)
-    } else {
-      # Calculate the amount of daughters of the last monphyletic internal node
-      thisnode$ismono <- FALSE
+    if(has_m == TRUE){
+      # If one of the daughters is monophyletic, calculate the monophyletic clade for that node's state
       for(daughter in thisnode$daughters){
-        if(length(daughter$daughters)>0){
+        if(daughter$ismono == TRUE){
           thisnode$monoweights[[daughter$state]] <- count_leaves(daughter)
         }
       }
-      thisnode$state <- unique(daughterstates)
-      thisnode$PS <- 1
     }
-  } else if(length(dmono)==2){
-    # If both daughters are internal nodes
-    if(dmono[1] && dmono[2]){
-      # If both daughters are monophyletic, check if they have the same state, if not calculate the amount of daughters of both nodes
-      daughterstates <- c()
-      for(daughter in thisnode$daughters){
-        daughterstates <- c(daughterstates, daughter$state)
-      }
-      if(length(unique(daughterstates)) == 1){
-        # If they are the same state
-        thisnode$state <- unique(daughterstates)
-        thisnode$ismono <- TRUE
-        # calculate the total amount of daughters of the monophyletic nodes
-      } else {
-        # If they have different states
-        thisnode$ismono <- FALSE
-        thisnode$state <- unique(daughterstates)
-        thisnode$PS <- 1
+  } else {
+    if(d1state == d2state){
+      # If they have the same states
+      thisnode$ismono <- TRUE
+      thisnode$state <- d1state
+    } else {
+      # If they have differing states
+      thisnode$ismono <- FALSE
+      thisnode$state <- c(d1state, d2state)
+      thisnode$PS <- 1
+      if(has_m == TRUE){
+        # If one or both of the daughters is monophyletic, calculate the monophyletic clade for that node's state
         for(daughter in thisnode$daughters){
           thisnode$monoweights[[daughter$state]] <- count_leaves(daughter)
         }
       }
-    } else if(!dmono[1] && !dmono[2]){
-      # If both daughters are not monophyletic, do nothing
-      thisnode$ismono <- FALSE
-      daughterstates <- list()
-      for(i in 1:length(thisnode$daughters)){
-        daughterstates[[i]] <- daughter$state
-      }
-      if(length(intersect(daughterstates[[1]], daughterstates[[2]])) > 0){
-        # If the daughter state sets have one or more state in common
-        thisnode$state <- intersect(daughterstates[[1]], daughterstates[[2]])
-      } else {
-        # If they have no states in common
-        thisnode$state <- c(daughterstates[[1]], daughterstates[[2]])
-        thisnode$PS <- 1
-      }
-    } else {
-      # If one of the daughters is monophyletic, calculate the amount of daughters of the monophyletic node
-      for(daughter in thisnode$daughters){
-        if(daughter$ismono){
-          thisnode$monoweights[[daughter$state]] <- count_leaves(daughter)
-        }
-      }
-      daughterstates <- list()
-      for(i in 1:length(thisnode$daughters)){
-        daughterstates[[i]] <- thisnode$daughters[[i]]$state
-      }
-      if(length(intersect(daughterstates[[1]], daughterstates[[2]])) > 0){
-        # If the daughter state sets have one or more state in common
-        thisnode$state <- intersect(daughterstates[[1]], daughterstates[[2]])
-      } else {
-        # If they have no states in common
-        thisnode$state <- unique(daughterstates)
-        thisnode$PS <- 1
-      }
-    }
-  } else {
-    # If the daughters are a terminal and a non monophyletic internal node
-    internal_states <- c()
-    for(daughter in thisnode$daughters){
-      if(length(daughter$daughters)>0){
-        # Get the state list of the internal daughter
-        internal_states <- daughter$state
-      }
-    }
-    if(length(intersect(internal_states, statelist))>0){
-      thisnode$state <- intersect(internal_states, statelist)
-    } else {
-      thisnode$state <- c(internal_states, statelist)
-      thisnode$PS <- 1
     }
   }
   return(thisnode)
@@ -823,6 +756,10 @@ calculate_all_stats <- function(treelist, utree, possible_states, state_attribut
 #' @return Undecided
 #' @export
 get_output <- function(all_stats, shuffled_stats){
+  print(table(all_stats$Monophylteic_clade_YES))
+  print(table(all_stats$Monophylteic_clade_NO))
+  print(table(shuffled_stats$Monophylteic_clade_YES))
+  print(table(shuffled_stats$Monophylteic_clade_NO))
   output_list <- list()
   #output_frame <- data.frame("Normal_means"=double())
   

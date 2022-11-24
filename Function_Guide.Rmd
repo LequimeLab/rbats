@@ -713,19 +713,16 @@ get_output <- function(all_stats, shuffled_stats){
   output_frame <- cbind(output_frame, t(data.frame(lapply(shuffled_stats, function(x) {
     return(x[max(c(round(length(x)*0.05), 1))])}))))
   
-  for(stat_num in 1:length(names(medians))){
-    stat <- names(medians)[[stat_num]]
-    count <- 0
-    for(value in shuffled_stats[[stat]]){
-      if(value<medians[[stat]] && stat_num <= 8){
-        count <- count + 1
-      } else if(value<medians[[stat]] && stat_num >= 9){
-        count <- count + 1
-      }
+  for(stat in names(medians)){
+    if("Monophyletic" %in% strsplit(stat, "_")[[1]]){
+      count <- length(shuffled_stats[[stat]][shuffled_stats[[stat]]<medians[[stat]]])
+    } else {
+      count <- length(shuffled_stats[[stat]][shuffled_stats[[stat]]<medians[[stat]]])
     }
     significance <- 1 - (count / length(shuffled_stats[[stat]]))
     output_list$significance[[stat]] <- significance
   }
+  
   output_frame <- cbind(output_frame, t(data.frame(output_list$significance)))
   colnames(output_frame) <- c("Normal_mean", "Normal_Upper_CI", "Normal_Lower_CI",
                               "Random_mean", "Random_Upper_CI", "Random_Lower_CI",
@@ -740,36 +737,58 @@ This function calculates various statistics of the statistics lists. It calculat
 ## Main function
 ```{r bats}
 bats <- function(treefile, xmlfile, reps=1, userinput=NULL){
-  apetrees <- treeio::read.beast(treefile)
+  start.time <- Sys.time()
+  print("Reading the tree file...")
+  apetrees <- ape::read.nexus(treefile)
   xmldict <- process_xml(xmlfile)
   state_attribute <- set_state_attribute(xmldict, userinput)
   possible_states <- get_possible_states(xmldict, state_attribute)
   print_start(treefile, apetrees, possible_states, state_attribute, reps)
   all_normal_stats <- list()
   all_shuffled_stats <- list()
-  if(length(apetrees)==1){
-    apetrees <- c(apetrees)
+  apetrees <- c(apetrees)
+  for(rep in 1:reps){
+    shuffled_stats <- list()
+    for(tree in apetrees){
+      tree <- ape::as.phylo(tree)
+      utree <- tree
+      tree <- TreeTools::NewickTree(tree)
+      shuffled_xmldict <- shuffle(xmldict, state_attribute)
+      shuffled_treelist <- make_tree(tree, shuffled_xmldict, state_attribute)
+      shuffled_stats <- calculate_all_stats(shuffled_treelist, utree,
+                                            possible_states, state_attribute,
+                                            shuffled_xmldict, shuffled_stats)
+      shuffled_stats <- lapply(shuffled_stats, sum)
+    }
+    shuffled_stats <- lapply(shuffled_stats, function(x){return(x/length(apetrees))})
+    if(length(all_shuffled_stats) ==0){
+      all_shuffled_stats <- shuffled_stats
+    } else {
+      stat_names <- names(shuffled_stats)
+      all_shuffled_stats <- lapply(names(shuffled_stats), function(x){append(
+                                  all_shuffled_stats[[x]], shuffled_stats[[x]])})
+      names(all_shuffled_stats) <- stat_names
+    }
   }
   for(tree in apetrees){
     tree <- ape::as.phylo(tree)
     utree <- tree
     tree <- TreeTools::NewickTree(tree)
+    
     treelist <- make_tree(tree, xmldict, state_attribute)
     all_normal_stats <- calculate_all_stats(treelist, utree, possible_states,
                                             state_attribute, xmldict, all_normal_stats)
-    
-    for(i in 1:reps){
-      shuffled_xmldict <- shuffle(xmldict, state_attribute)
-      shuffled_treelist <- make_tree(tree, shuffled_xmldict, state_attribute)
-      all_shuffled_stats <- calculate_all_stats(shuffled_treelist, utree, possible_states,
-                                                state_attribute, shuffled_xmldict, all_shuffled_stats)
-    }
   }
+  
   output <- get_output(all_normal_stats, all_shuffled_stats)
+  end.time <- Sys.time()
+  time.taken <- end.time - start.time
+  print(time.taken)
   return(output)
 }
 ```
-This function starts the whole process. It requires a path to a .trees or .tre file and the path to the .xml file. The arguments "reps" and "userinput" are optional. "reps" is the amount of shuffled trees that should be made. If the user inputs 1 or leaves this argument blank, 1 shuffled tree will be generated for each normal tree. If the number is higher than one, reps amount of shuffled trees will be generated for each normal tree. "userinput" is a string that indicates the attribute that should be use as the state attribute. Leaving this blank will make the program automatically choose a state attribute. 
+This function starts the whole process. It requires a path to a .trees or .tre file and the path to the xml file. The arguments "reps" and "userinput" are optional. "userinput" is a string that indicates the attribute that should be used as the state attribute. Leaving this blank will make the program automatically choose a state attribute. "reps" is an integer that indicates how many repetitions of shuffled trees should be made. Every repetition will shuffle the states of the state dictionary. This dictionary is then used to create a shuffled tree for each tree in the tree file. For each statistic the mean will be calculated and that stat list will act as the stat list for that repetition. This way, it is more accurate but it also requires more repetitions for better results.
+
 
 
 

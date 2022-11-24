@@ -652,23 +652,43 @@ bats <- function(treefile, xmlfile, reps=1, userinput=NULL){
   all_shuffled_stats <- list()
   apetrees <- c(apetrees)
   
+  # Shuffled trees
+  for(rep in 1:reps){
+    shuffled_stats <- list()
+    for(tree in apetrees){
+      # Get Trees
+      tree <- ape::as.phylo(tree)
+      utree <- tree
+      tree <- TreeTools::NewickTree(tree)
+      
+      shuffled_xmldict <- shuffle(xmldict, state_attribute)
+      
+      shuffled_treelist <- make_tree(tree, shuffled_xmldict, state_attribute)
+      shuffled_stats <- calculate_all_stats(shuffled_treelist, utree, possible_states, state_attribute, shuffled_xmldict, shuffled_stats)
+      shuffled_stats <- lapply(shuffled_stats, sum)
+    }
+    shuffled_stats <- lapply(shuffled_stats, function(x){return(x/length(apetrees))})
+    if(length(all_shuffled_stats) ==0){
+      all_shuffled_stats <- shuffled_stats
+    } else {
+      stat_names <- names(shuffled_stats)
+      all_shuffled_stats <- lapply(names(shuffled_stats), function(x){append(all_shuffled_stats[[x]], shuffled_stats[[x]])})
+      names(all_shuffled_stats) <- stat_names
+    }
+  }
+  
+  # Normal trees
   for(tree in apetrees){
     # Get Trees
     tree <- ape::as.phylo(tree)
     utree <- tree
     tree <- TreeTools::NewickTree(tree)
+    print(tree)
     
-    # Normal trees
     treelist <- make_tree(tree, xmldict, state_attribute)
     all_normal_stats <- calculate_all_stats(treelist, utree, possible_states, state_attribute, xmldict, all_normal_stats)
-    
-    # Shuffled trees
-    for(i in 1:reps){
-      shuffled_xmldict <- shuffle(xmldict, state_attribute)
-      shuffled_treelist <- make_tree(tree, shuffled_xmldict, state_attribute)
-      all_shuffled_stats <- calculate_all_stats(shuffled_treelist, utree, possible_states, state_attribute, shuffled_xmldict, all_shuffled_stats)
-    }
   }
+  
   output <- get_output(all_normal_stats, all_shuffled_stats)
   end.time <- Sys.time()
   time.taken <- end.time - start.time
@@ -741,7 +761,7 @@ calculate_all_stats <- function(treelist, utree, possible_states, state_attribut
   all_stats$Phylogenetic_distance <- c(all_stats$Phylogenetic_distance, get_phylogenetic_distance(treelist))
   # The monophylteic clade is calculated for each state
   for(state in possible_states){
-    stat_name <- paste0("Monophylteic_clade_", state, collapse="")
+    stat_name <- paste0("Monophyletic_clade_", state, collapse="")
     all_stats[[stat_name]] <- c(all_stats[[stat_name]], highest_mono(treelist, possible_states)[[state]])
   }
   return(all_stats)
@@ -756,12 +776,7 @@ calculate_all_stats <- function(treelist, utree, possible_states, state_attribut
 #' @return Undecided
 #' @export
 get_output <- function(all_stats, shuffled_stats){
-  print(table(all_stats$Monophylteic_clade_YES))
-  print(table(all_stats$Monophylteic_clade_NO))
-  print(table(shuffled_stats$Monophylteic_clade_YES))
-  print(table(shuffled_stats$Monophylteic_clade_NO))
   output_list <- list()
-  #output_frame <- data.frame("Normal_means"=double())
   
   # Sort the stat lists
   all_stats <- lapply(all_stats, sort)
@@ -776,21 +791,16 @@ get_output <- function(all_stats, shuffled_stats){
   output_frame <- cbind(output_frame, t(data.frame(lapply(shuffled_stats, function(x) {return(x[round(length(x)*0.95)])}))))
   output_frame <- cbind(output_frame, t(data.frame(lapply(shuffled_stats, function(x) {return(x[max(c(round(length(x)*0.05), 1))])}))))
   # Calculate the significance
-  for(stat_num in 1:length(names(medians))){
-    stat <- names(medians)[[stat_num]]
-    count <- 0
-    for(value in shuffled_stats[[stat]]){
-      if(value<medians[[stat]] && stat_num <= 8){
-        # For all other stats
-        count <- count + 1
-      } else if(value<medians[[stat]] && stat_num >= 9){
-        # For the MC stats
-        count <- count + 1
-      }
+  for(stat in names(medians)){
+    if("Monophyletic" %in% strsplit(stat, "_")[[1]]){
+      count <- length(shuffled_stats[[stat]][shuffled_stats[[stat]]>medians[[stat]]])
+    } else {
+      count <- length(shuffled_stats[[stat]][shuffled_stats[[stat]]<medians[[stat]]])
     }
     significance <- 1 - (count / length(shuffled_stats[[stat]]))
     output_list$significance[[stat]] <- significance
   }
+  
   output_frame <- cbind(output_frame, t(data.frame(output_list$significance)))
   
   colnames(output_frame) <- c("Normal_mean", "Normal_Upper_CI", "Normal_Lower_CI", "Random_mean", "Random_Upper_CI", "Random_Lower_CI", "Significance")

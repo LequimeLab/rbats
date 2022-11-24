@@ -130,7 +130,7 @@ This function will shuffle the order of the values of a given attribute. It does
 
 ### Make Tree
 ```{r make_tree}
-make_tree <- function(tree, statesdict, state_attribute) {
+make_tree <- function(tree, statesdict, state_attribute, PS_method) {
   treesplit <- strsplit(tree, "")[[1]]
   thisnode <- list(name="The tree", distance=0, ismono=FALSE, PS=0, daughters=list())
   
@@ -139,7 +139,7 @@ make_tree <- function(tree, statesdict, state_attribute) {
     char <- treesplit[i]
     if(char=="("){
       if(treesplit[i + 1] == "("){
-        newnode <- make_internal_node(treesplit, i + 1, statesdict, state_attribute)
+        newnode <- make_internal_node(treesplit, i + 1, statesdict, state_attribute, PS_method)
         thisnode$daughters <- append(thisnode$daughters, list(newnode))
         i <- newnode$position - 1
       } else {
@@ -149,7 +149,7 @@ make_tree <- function(tree, statesdict, state_attribute) {
       }
     } else if(char == ",") {
       if(treesplit[i+1] == "("){
-        newnode <- make_internal_node(treesplit, i + 1, statesdict, state_attribute)
+        newnode <- make_internal_node(treesplit, i + 1, statesdict, state_attribute, PS_method)
         thisnode$daughters <- append(thisnode$daughters, list(newnode))
         i <- newnode$position - 1
       } else {
@@ -161,6 +161,7 @@ make_tree <- function(tree, statesdict, state_attribute) {
     i <- i + 1
   }
   thisnode <- association_index(thisnode)
+  thisnode <- finish_node(thisnode, PS_method)
   return(thisnode)
 }
 ```
@@ -169,7 +170,7 @@ This function makes the top node and makes its daughters by calling other functi
 
 ### Make Internal Node
 ```{r make_internal_node}
-make_internal_node <- function(treesplit, pos, statesdict, state_attribute) {
+make_internal_node <- function(treesplit, pos, statesdict, state_attribute, PS_method) {
   thisnode <- list(daughters=list(), ismono=FALSE, PS=0)
   closeme <- FALSE
   
@@ -177,13 +178,13 @@ make_internal_node <- function(treesplit, pos, statesdict, state_attribute) {
   while(!closeme){
     char <- treesplit[i]
     if(char=="("){
-      newnode <- make_internal_node(treesplit, i, statesdict, state_attribute)
+      newnode <- make_internal_node(treesplit, i, statesdict, state_attribute, PS_method)
       lastnode <- newnode
       thisnode$daughters <- append(thisnode$daughters, list(newnode))
       i <- newnode$position - 1
     } else if(char==",") {
       if(treesplit[i + 1] == "("){
-        newnode <- make_internal_node(treesplit, i + 1, statesdict, state_attribute)
+        newnode <- make_internal_node(treesplit, i + 1, statesdict, state_attribute, PS_method)
         lastnode <- newnode
         thisnode$daughters <- append(thisnode$daughters, list(newnode))
         i <- newnode$position - 1
@@ -215,7 +216,7 @@ make_internal_node <- function(treesplit, pos, statesdict, state_attribute) {
         thisnode$position <- i
       }
       thisnode <- association_index(thisnode)
-      thisnode <- finish_node(thisnode)
+      thisnode <- finish_node(thisnode, PS_method)
       return(thisnode)
     } else {
       newpos <- i
@@ -281,7 +282,7 @@ This function creates terminal nodes. It is given a vector of the split tree, a 
 
 ### Finish Node
 ```{r finish_node}
-finish_node <- function(thisnode){
+finish_node <- function(thisnode, PS_method){
   has_nm <- FALSE
   has_m <- FALSE
   for(daughter in thisnode$daughters){
@@ -736,7 +737,7 @@ This function calculates various statistics of the statistics lists. It calculat
 
 ## Main function
 ```{r bats}
-bats <- function(treefile, xmlfile, reps=1, userinput=NULL){
+bats <- function(treefile, xmlfile, reps=1, userinput=NULL, PS_method="legacy"){
   start.time <- Sys.time()
   print("Reading the tree file...")
   apetrees <- ape::read.nexus(treefile)
@@ -787,7 +788,7 @@ bats <- function(treefile, xmlfile, reps=1, userinput=NULL){
   return(output)
 }
 ```
-This function starts the whole process. It requires a path to a .trees or .tre file and the path to the xml file. The arguments "reps" and "userinput" are optional. "userinput" is a string that indicates the attribute that should be used as the state attribute. Leaving this blank will make the program automatically choose a state attribute. "reps" is an integer that indicates how many repetitions of shuffled trees should be made. Every repetition will shuffle the states of the state dictionary. This dictionary is then used to create a shuffled tree for each tree in the tree file. For each statistic the mean will be calculated and that stat list will act as the stat list for that repetition. This way, it is more accurate but it also requires more repetitions for better results.
+This function starts the whole process. It requires a path to a .trees or .tre file and the path to the xml file. The arguments "reps", "userinput" and "PS_method" are optional. "userinput" is a string that indicates the attribute that should be used as the state attribute. Leaving this blank will make the program automatically choose a state attribute. "reps" is an integer that indicates how many repetitions of shuffled trees should be made. Every repetition will shuffle the states of the state dictionary. This dictionary is then used to create a shuffled tree for each tree in the tree file. For each statistic the mean will be calculated and that stat list will act as the stat list for that repetition. This way, it is more accurate but it also requires more repetitions for better results. "PS_method" is a string indicating the method in which the Parsimony score will be calculated. The default is "legacy", which is the same method Java BaTS uses. The other option is "fitch" which is Fitch's algorithm.
 
 
 

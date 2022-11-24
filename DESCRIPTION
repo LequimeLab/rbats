@@ -1,7 +1,7 @@
 Package: rbats
 Type: Package
 Title: RBATS
-Version: 1.2
+Version: 1.3
 Author: IJsbrand Pool
 RoxygenNote: 7.2.1
 Description: An R package for bayesian analasys of tip significance

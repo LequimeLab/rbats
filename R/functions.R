@@ -124,9 +124,10 @@ get_internal_distance <- function(node){
 #' @param pos the position in the string
 #' @param statesdict the xml dictionary of the states
 #' @param state_attribute the attribute that determines the state
+#' @param PS_method the method of how the Parsimony Score will be calculated
 #' @return the tree
 #' @export
-make_tree <- function(tree, statesdict, state_attribute) {
+make_tree <- function(tree, statesdict, state_attribute, PS_method) {
   # Split the tree so its a vector of all the characters
   treesplit <- strsplit(tree, "")[[1]]
   thisnode <- list(name="The tree", distance=0, ismono=FALSE, PS=0, daughters=list())
@@ -137,7 +138,7 @@ make_tree <- function(tree, statesdict, state_attribute) {
     if(char=="("){
       if(treesplit[i + 1] == "("){
         # If the next character is also a "(", make an internal node
-        newnode <- make_internal_node(treesplit, i + 1, statesdict, state_attribute)
+        newnode <- make_internal_node(treesplit, i + 1, statesdict, state_attribute, PS_method)
         thisnode$daughters <- append(thisnode$daughters, list(newnode))
         i <- newnode$position - 1
       } else {
@@ -149,7 +150,7 @@ make_tree <- function(tree, statesdict, state_attribute) {
     } else if(char == ",") {
       if(treesplit[i+1] == "("){
         # If the next character is also a "(", make an internal node
-        newnode <- make_internal_node(treesplit, i + 1, statesdict, state_attribute)
+        newnode <- make_internal_node(treesplit, i + 1, statesdict, state_attribute, PS_method)
         thisnode$daughters <- append(thisnode$daughters, list(newnode))
         i <- newnode$position - 1
       } else {
@@ -161,6 +162,7 @@ make_tree <- function(tree, statesdict, state_attribute) {
     } 
     i <- i + 1
   }
+  thisnode <- finish_node(thisnode, PS_method)
   thisnode <- association_index(thisnode)
   return(thisnode)
 }
@@ -173,9 +175,10 @@ make_tree <- function(tree, statesdict, state_attribute) {
 #' @param pos the position in the string
 #' @param statesdict the xml dictionary of the states
 #' @param state_attribute the attribute that determines the state
+#' @param PS_method the method of how the Parsimony Score will be calculated
 #' @return the internal node
 #' @export
-make_internal_node <- function(treesplit, pos, statesdict, state_attribute) {
+make_internal_node <- function(treesplit, pos, statesdict, state_attribute, PS_method) {
   thisnode <- list(daughters=list(), ismono=FALSE, PS=0)
   closeme <- FALSE
   
@@ -184,14 +187,14 @@ make_internal_node <- function(treesplit, pos, statesdict, state_attribute) {
     char <- treesplit[i]
     if(char=="("){
       # Recursion: If the character is a "(" make an internal node in this internal node
-      newnode <- make_internal_node(treesplit, i, statesdict, state_attribute)
+      newnode <- make_internal_node(treesplit, i, statesdict, state_attribute, PS_method)
       lastnode <- newnode
       thisnode$daughters <- append(thisnode$daughters, list(newnode))
       i <- newnode$position - 1
     } else if(char==",") {
       if(treesplit[i + 1] == "("){
         # Recursion: If the character is a "(" make an internal node in this internal node
-        newnode <- make_internal_node(treesplit, i + 1, statesdict, state_attribute)
+        newnode <- make_internal_node(treesplit, i + 1, statesdict, state_attribute, PS_method)
         lastnode <- newnode
         thisnode$daughters <- append(thisnode$daughters, list(newnode))
         i <- newnode$position - 1
@@ -202,7 +205,6 @@ make_internal_node <- function(treesplit, pos, statesdict, state_attribute) {
         thisnode$daughters <- append(thisnode$daughters, list(newnode))
         i <- newnode$position - 1
       }
-      
     } else if(char == ")") {
       # Close this node
       closeme <- TRUE
@@ -228,7 +230,7 @@ make_internal_node <- function(treesplit, pos, statesdict, state_attribute) {
         thisnode$position <- i
       }
       thisnode <- association_index(thisnode)
-      thisnode <- finish_node(thisnode)
+      thisnode <- finish_node(thisnode, PS_method)
       
       return(thisnode)
     } else {
@@ -315,9 +317,10 @@ make_terminal_node <- function(newpos, treesplit, statesdict, state_attribute) {
 #'
 #' Finishes the internal node by setting the state, the parsimony score, whether or not the node is monophyletic, and calculating the monophyletic clade if necessary.
 #' @param thisnode the internal node that should be finished
+#' @param PS_method the method of how the Parsimony Score will be calculated
 #' @return the finished internal node
 #' @export
-finish_node <- function(thisnode){
+finish_node <- function(thisnode, PS_method){
   has_nm <- FALSE
   has_m <- FALSE
   # Check if thisnode has a monophyletic daughter, a non-monophyletic daughter, neiter or both.
@@ -336,15 +339,32 @@ finish_node <- function(thisnode){
   if(has_nm == TRUE){
     # If thisnode has a non-monophyletic daughter
     thisnode$ismono <- FALSE
-    if(length(intersect(d1state, d2state)) > 0){
-      # If they have one or more matching states
-      thisnode$state <- intersect(d1state, d2state)
-    } else {
-      thisnode$state <- c(d1state, d2state)
-      thisnode$PS <- 1
+    
+    if(PS_method == "fitch"){
+      # Calculate the Parsimony Score using Fitch's algorithm
+      if(length(intersect(d1state, d2state)) > 0){
+        # If they have one or more matching states
+        thisnode$state <- intersect(d1state, d2state)
+      } else {
+        thisnode$state <- c(d1state, d2state)
+        thisnode$PS <- 1
+      }
+    } else if(PS_method == "legacy"){
+      # Calculate the Parsimony Score using Java BaTS' method
+      if(all(d1state %in% d2state)){
+        thisnode$state <- d1state
+      } else {
+        thisnode$PS <- 1
+        if(length(intersect(d1state, d2state)) == 0){
+          # If they have no states in common
+          thisnode$state <- c(d1state, d2state)
+        } else {
+          thisnode$state <- d1state[d1state %in% d2state]
+        }
+      }
     }
+    # If one of the daughters is monophyletic, calculate the monophyletic clade for that node's state
     if(has_m == TRUE){
-      # If one of the daughters is monophyletic, calculate the monophyletic clade for that node's state
       for(daughter in thisnode$daughters){
         if(daughter$ismono == TRUE){
           thisnode$monoweights[[daughter$state]] <- count_leaves(daughter)
@@ -634,9 +654,10 @@ NTI_NRI <- function(utree, possible_states, userinput, xmldict){
 #' @param xmlfile the path to the .xml file
 #' @param reps how many shuffled trees should be made for each normal tree
 #' @param userinput the state attribute
+#' @param PS_method the method of how the Parsimony Score will be calculated
 #' @return a data frame containing the output statistics
 #' @export
-bats <- function(treefile, xmlfile, reps=1, userinput=NULL){
+bats <- function(treefile, xmlfile, reps=1, userinput=NULL, PS_method="legacy"){
   start.time <- Sys.time()
   print("Reading the tree file...")
   apetrees <- ape::read.nexus(treefile)
@@ -663,12 +684,12 @@ bats <- function(treefile, xmlfile, reps=1, userinput=NULL){
       
       shuffled_xmldict <- shuffle(xmldict, state_attribute)
       
-      shuffled_treelist <- make_tree(tree, shuffled_xmldict, state_attribute)
+      shuffled_treelist <- make_tree(tree, shuffled_xmldict, state_attribute, PS_method)
       shuffled_stats <- calculate_all_stats(shuffled_treelist, utree, possible_states, state_attribute, shuffled_xmldict, shuffled_stats)
       shuffled_stats <- lapply(shuffled_stats, sum)
     }
     shuffled_stats <- lapply(shuffled_stats, function(x){return(x/length(apetrees))})
-    if(length(all_shuffled_stats) ==0){
+    if(length(all_shuffled_stats) == 0){
       all_shuffled_stats <- shuffled_stats
     } else {
       stat_names <- names(shuffled_stats)
@@ -683,9 +704,8 @@ bats <- function(treefile, xmlfile, reps=1, userinput=NULL){
     tree <- ape::as.phylo(tree)
     utree <- tree
     tree <- TreeTools::NewickTree(tree)
-    print(tree)
     
-    treelist <- make_tree(tree, xmldict, state_attribute)
+    treelist <- make_tree(tree, xmldict, state_attribute, PS_method)
     all_normal_stats <- calculate_all_stats(treelist, utree, possible_states, state_attribute, xmldict, all_normal_stats)
   }
   
@@ -793,9 +813,9 @@ get_output <- function(all_stats, shuffled_stats){
   # Calculate the significance
   for(stat in names(medians)){
     if("Monophyletic" %in% strsplit(stat, "_")[[1]]){
-      count <- length(shuffled_stats[[stat]][shuffled_stats[[stat]]>medians[[stat]]])
-    } else {
       count <- length(shuffled_stats[[stat]][shuffled_stats[[stat]]<medians[[stat]]])
+    } else {
+      count <- length(shuffled_stats[[stat]][shuffled_stats[[stat]]>medians[[stat]]])
     }
     significance <- 1 - (count / length(shuffled_stats[[stat]]))
     output_list$significance[[stat]] <- significance

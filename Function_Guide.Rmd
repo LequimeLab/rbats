@@ -740,21 +740,24 @@ This function calculates various statistics of the statistics lists. It calculat
 bats <- function(treefile, xmlfile, reps=1, userinput=NULL, PS_method="legacy"){
   start.time <- Sys.time()
   print("Reading the tree file...")
-  apetrees <- ape::read.nexus(treefile)
+  apetrees <- c(ape::read.nexus(treefile))
   xmldict <- process_xml(xmlfile)
   state_attribute <- set_state_attribute(xmldict, userinput)
   possible_states <- get_possible_states(xmldict, state_attribute)
+  shuffled_xmldicts <- c()
+  for(rep in 1:reps){
+    shuffled_xmldicts <- c(shuffled_xmldicts, list(shuffle(xmldict, state_attribute)))
+  }
   print_start(treefile, apetrees, possible_states, state_attribute, reps)
   all_normal_stats <- list()
   all_shuffled_stats <- list()
-  apetrees <- c(apetrees)
   for(rep in 1:reps){
     shuffled_stats <- list()
+    shuffled_xmldict <- shuffled_xmldicts[rep][[1]]
     for(tree in apetrees){
       tree <- ape::as.phylo(tree)
       utree <- tree
       tree <- TreeTools::NewickTree(tree)
-      shuffled_xmldict <- shuffle(xmldict, state_attribute)
       shuffled_treelist <- make_tree(tree, shuffled_xmldict, state_attribute)
       shuffled_stats <- calculate_all_stats(shuffled_treelist, utree,
                                             possible_states, state_attribute,

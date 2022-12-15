@@ -21,6 +21,7 @@ The only function a user needs to call to use this package is `bats()`. This fun
 | xmlfile   | No       | The path to the .xml file                                                              |
 | reps      | Yes      | An integer indicating how many shuffled trees should be generated for each normal tree |
 | userinput | Yes      | Which attribute should be used as the state attribute                                  |
+| PS_method | Yes      | Which method for the parsimony score should be used, either "legacy" or "fitch"        |
 
 Example:
 ```

@@ -229,7 +229,6 @@ make_internal_node <- function(treesplit, pos, statesdict, state_attribute, PS_m
         thisnode$distance <- as.double(distance)
         thisnode$position <- i
       }
-      thisnode <- association_index(thisnode)
       thisnode <- finish_node(thisnode, PS_method)
       
       return(thisnode)
@@ -315,7 +314,8 @@ make_terminal_node <- function(newpos, treesplit, statesdict, state_attribute) {
 
 #' Finish internal node
 #'
-#' Finishes the internal node by setting the state, the parsimony score, whether or not the node is monophyletic, and calculating the monophyletic clade if necessary.
+#' Finishes the internal node by setting the state, the parsimony score, whether or not the node is monophyletic, the association index,
+#'     and calculating the monophyletic clade if necessary.
 #' @param thisnode the internal node that should be finished
 #' @param PS_method the method of how the Parsimony Score will be calculated
 #' @return the finished internal node
@@ -389,6 +389,7 @@ finish_node <- function(thisnode, PS_method){
       }
     }
   }
+  thisnode <- association_index(thisnode)
   return(thisnode)
 }
 
@@ -660,29 +661,32 @@ NTI_NRI <- function(utree, possible_states, userinput, xmldict){
 bats <- function(treefile, xmlfile, reps=1, userinput=NULL, PS_method="legacy"){
   start.time <- Sys.time()
   print("Reading the tree file...")
-  apetrees <- ape::read.nexus(treefile)
+  apetrees <- c(ape::read.nexus(treefile))
   xmldict <- process_xml(xmlfile)
   
   # Get possible states
   state_attribute <- set_state_attribute(xmldict, userinput)
   possible_states <- get_possible_states(xmldict, state_attribute)
   
+  shuffled_xmldicts <- c()
+  for(rep in 1:reps){
+    shuffled_xmldicts <- c(shuffled_xmldicts, list(shuffle(xmldict, state_attribute)))
+  }
+  
   print_start(treefile, apetrees, possible_states, state_attribute, reps)
   
   all_normal_stats <- list()
   all_shuffled_stats <- list()
-  apetrees <- c(apetrees)
   
   # Shuffled trees
   for(rep in 1:reps){
     shuffled_stats <- list()
+    shuffled_xmldict <- shuffled_xmldicts[rep][[1]]
     for(tree in apetrees){
       # Get Trees
       tree <- ape::as.phylo(tree)
       utree <- tree
       tree <- TreeTools::NewickTree(tree)
-      
-      shuffled_xmldict <- shuffle(xmldict, state_attribute)
       
       shuffled_treelist <- make_tree(tree, shuffled_xmldict, state_attribute, PS_method)
       shuffled_stats <- calculate_all_stats(shuffled_treelist, utree, possible_states, state_attribute, shuffled_xmldict, shuffled_stats)
@@ -715,6 +719,26 @@ bats <- function(treefile, xmlfile, reps=1, userinput=NULL, PS_method="legacy"){
   print(time.taken)
   return(output)
 }
+
+
+#' Function to be added for different formats
+#' Read the trees in the correct format
+#read_trees <- function(treefile){
+#  if(file.exists(treefile)){
+#    # Open the file connection
+#    con = file(treefile, "r")
+#    on.exit(close(con))
+#    
+#    header = readLines(con, n = 1)
+#    
+#    if(header == "#NEXUS"){
+#      apetrees <- ape::read.nexus(treefile)
+#    } else if(header == "#MRBAYES"){
+#      apetrees <- treeio::read.mrbayes(treefile)
+#    }
+#  }
+#  return(apetrees)
+#}
     
     
 #' Set the state attribute
